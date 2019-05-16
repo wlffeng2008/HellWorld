@@ -1,0 +1,205 @@
+﻿<!DOCTYPE HTML>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>火星坐标拾取</title>
+  <script language="javascript" src="http://webapi.amap.com/maps?v=1.4.2&key=6260f3e133c146a76f7c210c2786aec9"></script>
+
+  <style>
+   *{margin: 0px; padding:0px;}
+   body{font-size:12px;}  
+
+   #GetInfo{flot:top;width:100%; min-width:1000px;background:#cfcf00;}
+   #info{float:left; width:400px; min-width:400px;}
+   #func{float:left; width:600px;min-width:400px;}
+
+   #iMap{height:780px;width:100%;}
+  </style>
+
+<script language="javascript">
+
+var mapObj;
+var lineArr ;
+var lineArr1 ;
+var ImageURL="D:\\KuaiPan\\GPSTracker\\StopIcons\\F.png";
+//var ImageURL="D:\\MyWork\\DarSunLaser\\Logo.png";
+var ImageURL1="http://api.amap.com/webapi/static/Images/marker_sprite.png";
+
+var clickXY ;
+var nTimer ;
+
+function mapInit()
+{
+  var opt = {  
+     level: 13, 
+     center: new AMap.LngLat(113.885947, 22.54723) 
+    }
+
+    mapObj = new AMap.Map("iMap", opt);  
+    AMap.event.addListener(mapObj,'click',getLnglat); //点击事件
+    //AMap.event.addListener(mapObj,'mapmove',getCenter);
+
+     mapObj.setFitView();
+
+     showCityInfo() ;
+}
+
+
+function showCityInfo() {  //IP定位
+    //加载IP定位插件
+    mapObj.plugin(["AMap.CitySearch"], function() {
+        //实例化城市查询类
+        var citysearch = new AMap.CitySearch();
+        //自动获取用户IP，返回当前城市
+        citysearch.getLocalCity();
+        AMap.event.addListener(citysearch, "complete", function(result){
+            if(result && result.city && result.bounds)
+            {
+                var cityinfo = result.city;
+                var citybounds = result.bounds;
+	        document.getElementById("city").value = cityinfo ;
+
+                mapObj.setBounds(citybounds);
+
+		mapObj.setCenter(new AMap.LngLat(result.getLng(),result.getLat()));
+		//placeSearch() ;
+            }
+        });
+    });
+}
+
+function placeSearch() {  //POI搜索，关键字查询
+    var key_1 = document.getElementById("city").value;
+    mapObj.plugin(["AMap.PlaceSearch"], function() {    //构造地点查询类  
+        var MSearch = new AMap.PlaceSearch({ 
+            pageSize:10,
+            pageIndex:1
+        });
+        AMap.event.addListener(MSearch, "complete", function(data){
+			var poiArr = data.poiList.pois;
+			var lngX = poiArr[0].location.getLng();
+			var latY = poiArr[0].location.getLat();
+			mapObj.setCenter(new AMap.LngLat(lngX, latY));
+                        GetCity() ;
+
+			getCenter() ;
+		});//返回地点查询结果		
+        MSearch.search(key_1); //关键字查询
+    });
+}
+
+function GetAddress(x,y)
+{
+   mapObj.clearMap();
+   var XY = new AMap.LngLat(x,y);
+   var MGeocoder;
+
+  mapObj.plugin(["AMap.Geocoder"], function() {		
+      MGeocoder = new AMap.Geocoder({ 
+      radius: 1000,
+      extensions: "all"
+    });
+
+    clickXY = XY ;
+    //返回地理编码结果 
+    AMap.event.addListener(MGeocoder, "complete", GetAddress_CallBack); 
+    //逆地理编码
+    MGeocoder.getAddress(XY); 
+  });
+}
+
+//回调函数
+function GetAddress_CallBack(data)
+{
+  var address = data.regeocode.formattedAddress;
+  document.getElementById("iAddress").innerHTML = address;
+
+  var marker = new AMap.Marker({
+      map:mapObj,
+      icon: ImageURL,
+      position: clickXY ,
+      offset: new AMap.Pixel(0,-31)
+  });
+
+    mapObj.addOverlays(marker);
+}
+
+//鼠标点击，获取经纬度坐标  
+function getLnglat(e)
+{
+  var x = e.lnglat.getLng();
+  var y = e.lnglat.getLat(); 
+  document.getElementById("lnglat").innerHTML = x + "," + y;
+  document.getElementById("GPSInfo").value = x + "," + y;
+  clickXY = e.lnglat ;
+
+  GetAddress(x,y);
+}
+
+
+function setCenter(lng,lat)
+{
+	mapObj.setCenter(new AMap.LngLat(lng, lat));
+}
+
+function getCenter()
+{
+	clearInterval(nTimer);
+        mapObj.clearMap();
+	if(mapObj != null)
+	{
+		var center = mapObj.getCenter();   
+  		document.getElementById("GPSInfo").value = center.lng + "," + center.lat;
+		GetCity();
+	}
+}
+
+
+
+function GetCity()
+{
+	if(mapObj != null)
+	{
+		var s_xy = document.getElementById("GPSInfo").value;  		
+  		document.getElementById("lnglat").innerHTML = s_xy;
+   		var arr_xy = s_xy.split(",");
+		GetAddress(arr_xy[0],arr_xy[1]) ;
+	}
+}
+
+function SetLngLat()
+{
+	if(mapObj != null)
+	{
+		var s_xy = document.getElementById("GPSInfo").value;  		
+  		document.getElementById("lnglat").innerHTML = s_xy;
+   		var arr_xy = s_xy.split(",");
+		setCenter(arr_xy[0],arr_xy[1]) ;
+                nTimer = setInterval("getCenter()",1000);
+	}
+}
+
+</script>
+
+</head>
+
+<body onLoad="mapInit()">
+<div id="GetInfo">
+  <div id="info">
+    坐标：<span id="lnglat"> </span><br>
+    地址：<span id="iAddress"> </span><br>
+  </div>
+
+  <div id="func">
+   地名：<input type="text" id="city" value="深圳"/><a href="javascript:placeSearch();"> 跳转至地名 </a> <br>
+   坐标：<input type="text" id="GPSInfo" value="113.92,22.61"/><a href="javascript:GetCity();"> 获取地址 </a> &nbsp;&nbsp;&nbsp;&nbsp;<a href="javascript:SetLngLat();">跳转至... </a><br>
+  </div>
+  <div style="clear:both"></div>
+</div>
+
+  <div style="clear:both"></div>
+  <div id="iMap"></div>
+
+</body>
+
+</html>
